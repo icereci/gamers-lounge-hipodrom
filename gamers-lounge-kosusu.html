@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamers Lounge Koşusu - Ultimate Edition</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #222;
+            background-image: radial-gradient(circle, #2c3e50 0%, #000 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+        }
+        h1 { 
+            margin-bottom: 15px; 
+            text-transform: uppercase; 
+            letter-spacing: 4px; 
+            color: #f39c12; 
+            text-shadow: 0 0 10px #e67e22, 3px 3px 0 #000;
+            font-size: 2.5rem;
+        }
+        
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            width: 900px;
+            height: 500px;
+            border: 8px solid #34495e;
+            border-radius: 8px;
+            background: #000;
+        }
+        
+        canvas { display: block; cursor: crosshair; }
+
+        /* --- HUD --- */
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none; 
+            z-index: 20;
+        }
+        
+        .hud-box {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-family: 'Consolas', monospace;
+            border-left: 5px solid #f39c12;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            color: #fff;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        #top3-list { list-style: none; padding: 0; margin: 0; }
+        #top3-list li {
+            margin-bottom: 4px; display: flex; justify-content: space-between;
+            width: 200px; font-size: 14px; border-bottom: 1px solid #444; padding-bottom: 2px;
+        }
+
+        /* --- UI Katmanı --- */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: rgba(0, 0, 0, 0.9);
+            transition: opacity 0.6s ease-in-out;
+            z-index: 30;
+            backdrop-filter: blur(5px);
+        }
+        .hidden { opacity: 0; pointer-events: none; }
+        
+        .panel {
+            background: linear-gradient(145deg, #ecf0f1, #bdc3c7);
+            color: #2c3e50; padding: 40px; border-radius: 12px;
+            text-align: center; min-width: 350px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+            border: 1px solid #fff;
+            transform: scale(1); transition: transform 0.3s;
+        }
+        .panel:hover { transform: scale(1.02); }
+
+        h2 { margin-top: 0; color: #2c3e50; text-transform: uppercase; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
+
+        select, button {
+            padding: 12px 20px; margin: 10px; font-size: 16px;
+            border-radius: 6px; border: 1px solid #95a5a6; cursor: pointer;
+            font-family: inherit; transition: all 0.2s;
+        }
+        select { background: #fff; }
+        button {
+            background-color: #e74c3c; color: white; border: none; font-weight: bold;
+            box-shadow: 0 4px 0 #c0392b;
+        }
+        button:hover { background-color: #e67e22; box-shadow: 0 4px 0 #d35400; transform: translateY(-2px); }
+        button:active { transform: translateY(2px); box-shadow: none; }
+        button:disabled { background-color: #95a5a6; box-shadow: none; cursor: not-allowed; transform: none; }
+        
+        #horse-list {
+            list-style: none; padding: 0; margin: 15px 0; max-height: 220px;
+            overflow-y: auto; text-align: left; border: 1px solid #bdc3c7;
+            background: #fff; border-radius: 4px;
+        }
+        .horse-option {
+            padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;
+            display: flex; justify-content: space-between; transition: background 0.2s;
+        }
+        .horse-option:hover { background-color: #dfe6e9; }
+        .horse-option.selected { background-color: #3498db; color: white; }
+        
+        /* --- Anlatıcı --- */
+        #narrator-container {
+            margin-top: 15px; background: #111; padding: 5px;
+            border-radius: 6px; box-shadow: 0 0 15px #000; border: 2px solid #444;
+        }
+        #narrator-box {
+            background: #000; width: 880px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            color: #f1c40f; font-family: 'Courier New', Courier, monospace;
+            font-size: 1.3em; font-weight: bold; text-transform: uppercase;
+            letter-spacing: 1px; overflow: hidden; white-space: nowrap;
+            text-shadow: 0 0 5px #f39c12;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+
+        #flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; opacity: 0; pointer-events: none; z-index: 50;
+            transition: opacity 0.1s;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Gamers Lounge Koşusu</h1>
+
+    <div id="game-container">
+        <canvas id="raceTrack" width="900" height="500"></canvas>
+        <div id="flash-overlay"></div>
+        
+        <div id="hud">
+            <div class="hud-box" id="user-rank" style="display:none;">SIRA: - / -</div>
+            <div class="hud-box" id="leaderboard-box" style="display:none;">
+                <strong>LİDER TABLOSU</strong>
+                <ul id="top3-list"></ul>
+            </div>
+        </div>
+
+        <div id="ui-layer">
+            <div class="panel" id="setup-panel">
+                <h2>Yarış Ayarları</h2>
+                <label>At Sayısı:</label>
+                <select id="num-horses">
+                    <option value="4">4</option>
+                    <option value="6">6</option>
+                    <option value="8" selected>8</option>
+                    <option value="10">10</option>
+                    <option value="12">12</option>
+                </select>
+                <button onclick="generateHorses()">Yarışçıları Oluştur</button>
+                
+                <div id="selection-area" style="display:none;">
+                    <h3>Favorini Seç</h3>
+                    <p style="font-size:0.9em; color:#7f8c8d;">Bahis yapmak için bir at seçin</p>
+                    <ul id="horse-list"></ul>
+                    <button id="start-btn" disabled onclick="startRace()">YARIŞI BAŞLAT</button>
+                </div>
+            </div>
+
+            <div class="panel" id="result-panel" style="display:none;">
+                <h2 id="result-title">Yarış Bitti!</h2>
+                <p id="result-message" style="font-size: 1.2em; margin: 20px 0;"></p>
+                <button onclick="resetGame()">TEKRAR OYNA</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="narrator-container">
+        <div id="narrator-box">Gamers Lounge Koşusu'na hoş geldiniz. Ayarları seçin.</div>
+    </div>
+
+<script>
+    // --- SES SİSTEMİ ---
+    class SoundManager {
+        constructor() {
+            this.ctx = null;
+            this.gallopInterval = null;
+            this.crowdNode = null;
+            this.crowdGain = null;
+        }
+        init() {
+            if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+        }
+        startGallop() {
+            if (this.gallopInterval) return;
+            this.gallopInterval = setInterval(() => { if(this.ctx && isRacing) this.playGallopBeat(); }, 140);
+        }
+        playGallopBeat() {
+            if(!this.ctx) return;
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(120, t);
+            osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+            gain.gain.setValueAtTime(0.08, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t); osc.stop(t + 0.1);
+        }
+        stopGallop() {
+            if (this.gallopInterval) { clearInterval(this.gallopInterval); this.gallopInterval = null; }
+        }
+        startCrowd() {
+            if (this.crowdNode) return;
+            const bufferSize = 2 * this.ctx.sampleRate;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const output = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+            this.crowdNode = this.ctx.createBufferSource();
+            this.crowdNode.buffer = buffer;
+            this.crowdNode.loop = true;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 600;
+            this.crowdGain = this.ctx.createGain();
+            this.crowdGain.gain.value = 0.02; 
+            this.crowdNode.connect(filter);
+            filter.connect(this.crowdGain);
+            this.crowdGain.connect(this.ctx.destination);
+            this.crowdNode.start();
+        }
+        updateCrowdIntensity(progress) {
+            if (!this.crowdGain) return;
+            if (progress > 0.8) {
+                const intensity = 0.02 + ((progress - 0.8) * 2.5); 
+                this.crowdGain.gain.setTargetAtTime(Math.min(intensity, 0.4), this.ctx.currentTime, 0.1);
+            }
+        }
+        stopAll() {
+            this.stopGallop();
+            if (this.crowdNode) { this.crowdNode.stop(); this.crowdNode = null; this.crowdGain = null; }
+        }
+    }
+    const soundManager = new SoundManager();
+
+    // --- DEĞİŞKENLER ---
+    const canvas = document.getElementById('raceTrack');
+    const ctx = canvas.getContext('2d');
+    const narratorEl = document.getElementById('narrator-box');
+    const userRankEl = document.getElementById('user-rank');
+    const top3ListEl = document.getElementById('top3-list');
+    const leaderboardBox = document.getElementById('leaderboard-box');
+    const flashOverlay = document.getElementById('flash-overlay');
+    
+    const TRACK_CENTER_X = canvas.width / 2;
+    const TRACK_CENTER_Y = canvas.height / 2;
+    const TRACK_WIDTH = 750;
+    const TRACK_HEIGHT = 350;
+    const RADIUS = TRACK_HEIGHT / 2;
+    const STRAIGHT_LEN = TRACK_WIDTH - (RADIUS * 2);
+    const TOTAL_DIST = (STRAIGHT_LEN * 2) + (2 * Math.PI * RADIUS);
+    
+    const ORIGINAL_HORSE_NAMES = [
+      "Bold Pilot", "Yavuzstar", "Berksoy", "Süphan", "Turbo", "Graystorm", "Ribella", "Kayızbert", "My Dear Son",
+      "Miramis", "Halis Karataş’ın Rüzgarı", "Kafkaslı", "Sanzatu", "Uçanbey", "Anadolu Aslanı", "Külotlu Meteor",
+      "Yanlış Startlı İbo", "Ters Nal", "Kumda Kaybolan", "Mahallenin Şahlananı", "Dörtnal Değil İkinal",
+      "Nalları Takan Dayı", "Gagatör", "Şaşkın Doruk", "Rakiplerle Çaycı", "İbrahim the Stallion", "Olgaç Overdrive",
+      "Canter Can", "Serkan Şahlanır", "Batu Breakpoint", "Tancan Turbo", "Ali Sprintmaster", "Mimarın Çizgisi",
+      "Mühendisin Momentumu", "UX Koşucu", "Wireframe Yeleli", "Project Manager Panik Atı", "Alman Disiplini",
+      "İçimizdeki İrlandalı Tay", "Yürüyüş Canavarı", "First Person Şahlanış", "Yaşlı Oyuncu Refleksi",
+      "İbrahim İrlanda Pedigree", "Olgaç Pixel Gallop", "Serkan Senior Player"
+    ];
+
+    const COMMENTARY = {
+        START: ["Start verildi ve yarış başladı! Büyük heyecan!", "Kapılar açıldı, Gamers Lounge koşusu başladı!", "Herkes nefesini tuttu, yarış başladı!"],
+        LEAD_CHANGE: ["{HORSE} liderliği ele geçirdi!", "Şimdi {HORSE} öne fırladı!", "Liderlik el değiştirdi, yeni lider {HORSE}!"],
+        SPRINT: ["{HORSE} turboyu açtı! İnanılmaz gidiyor!", "{HORSE} adeta uçuyor!", "{HORSE} arkadan roket gibi geliyor!"],
+        CLOSE_FIGHT: ["Kafa kafaya bir mücadele!", "Nefes nefese bir yarış!", "Kimse pes etmiyor!"],
+        FINAL: ["Son düzlüğe girildi! Tribünler ayakta!", "Bitiş çizgisi göründü!", "Şampiyon kim olacak?!"]
+    };
+
+    const SPEED_FACTOR = 0.17; 
+    let horses = [];
+    let particles = [];
+    let confetti = [];
+    let selectedHorseId = null;
+    let isRacing = false;
+    let winner = null;
+    let lastLeaderId = -1;
+    let commentaryCooldown = 0;
+    let flashTriggered = false;
+    
+    // Mouse Takibi
+    let mouseX = 0;
+    let mouseY = 0;
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+    });
+
+    // --- SINIFLAR ---
+    class Particle {
+        constructor(x, y) {
+            this.x = x; this.y = y; this.size = Math.random() * 3 + 1;
+            this.life = 1.0; this.vx = (Math.random() - 0.5) * 2; this.vy = (Math.random() - 0.5) * 2;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.life -= 0.03; }
+        draw(ctx) {
+            ctx.globalAlpha = this.life; ctx.fillStyle = '#d7ccc8';
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    class ConfettiPiece {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height - canvas.height;
+            this.size = Math.random() * 7 + 3;
+            this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            this.speed = Math.random() * 3 + 2;
+            this.angle = Math.random() * 6.28; this.spin = Math.random() * 0.2 - 0.1;
+        }
+        update() { this.y += this.speed; this.angle += this.spin; if(this.y > canvas.height) this.y = -10; }
+        draw(ctx) {
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.fillStyle = this.color; ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+            ctx.restore();
+        }
+    }
+
+    class Horse {
+        constructor(id, name, color) {
+            this.id = id; this.name = name; this.color = color; 
+            this.stats = {
+                accel: (0.02 + Math.random() * 0.03) * SPEED_FACTOR,      
+                maxSpeed: (2.5 + Math.random() * 1.5) * SPEED_FACTOR,     
+                sprintSpeed: (4.0 + Math.random() * 1.0) * SPEED_FACTOR,  
+                cornering: 0.75 + Math.random() * 0.20,   
+                startKick: (2.0 + Math.random() * 2.0) * SPEED_FACTOR,    
+                endStamina: Math.random(), consistency: Math.random()               
+            };
+            this.distance = 0; this.currentSpeed = 0; this.finished = false; this.finishTime = 0; this.laneOffset = 0; 
+            this.boostsRemaining = 3; this.isBoosting = false; this.currentSegment = 0; this.trail = []; 
+        }
+
+        update() {
+            if (this.finished) return;
+            if (Math.random() > 0.7) { const pos = this.getPosition(); particles.push(new Particle(pos.x, pos.y + 5)); }
+
+            const segmentSize = TOTAL_DIST / 10;
+            const newSegment = Math.floor(this.distance / segmentSize);
+            if (newSegment > this.currentSegment) {
+                this.currentSegment = newSegment;
+                if (this.boostsRemaining > 0 && !this.isBoosting && Math.random() < 0.15) {
+                    this.isBoosting = true; this.boostsRemaining--;
+                } else { this.isBoosting = false; }
+            }
+
+            let targetSpeed = this.stats.maxSpeed;
+            if (this.isBoosting) targetSpeed = this.stats.sprintSpeed * 1.3;
+            if (this.isInCurve()) targetSpeed *= this.stats.cornering;
+            if (this.distance < 100) targetSpeed += this.stats.startKick;
+            if (this.distance > TOTAL_DIST - 300 && !this.isBoosting) {
+                if (this.stats.endStamina > 0.4) targetSpeed = this.stats.sprintSpeed;
+            }
+
+            const luck = (Math.random() - 0.5) * (1 - this.stats.consistency) * SPEED_FACTOR;
+            targetSpeed += luck;
+
+            if (this.currentSpeed < targetSpeed) this.currentSpeed += this.stats.accel * (this.isBoosting ? 3 : 1);
+            else this.currentSpeed -= this.stats.accel;
+
+            if (this.currentSpeed < 0.1 * SPEED_FACTOR) this.currentSpeed = 0.1 * SPEED_FACTOR;
+            this.distance += this.currentSpeed;
+
+            if (this.isBoosting) { const pos = this.getPosition(); this.trail.push({x: pos.x, y: pos.y}); if (this.trail.length > 10) this.trail.shift(); }
+            else this.trail = [];
+
+            if (this.distance >= TOTAL_DIST) {
+                this.finished = true; this.finishTime = Date.now(); this.distance = TOTAL_DIST;
+                if (!flashTriggered) { triggerFlash(); flashTriggered = true; }
+            }
+        }
+
+        isInCurve() {
+            const curveLen = Math.PI * RADIUS; const lapPos = this.distance % TOTAL_DIST;
+            if (lapPos < STRAIGHT_LEN) return false; 
+            if (lapPos < STRAIGHT_LEN + curveLen) return true; 
+            if (lapPos < (STRAIGHT_LEN * 2) + curveLen) return false; 
+            return true; 
+        }
+
+        getPosition() {
+            const sl_half = STRAIGHT_LEN / 2; const curveLen = Math.PI * RADIUS; let d = this.distance; let x, y;
+            if (d < STRAIGHT_LEN) { x = (TRACK_CENTER_X - sl_half) + d; y = TRACK_CENTER_Y - RADIUS; }
+            else if (d < STRAIGHT_LEN + curveLen) {
+                const angle = -Math.PI/2 + ((d - STRAIGHT_LEN) / curveLen) * Math.PI;
+                x = (TRACK_CENTER_X + sl_half) + Math.cos(angle) * RADIUS; y = TRACK_CENTER_Y + Math.sin(angle) * RADIUS;
+            } else if (d < (STRAIGHT_LEN * 2) + curveLen) {
+                const straightDist = d - (STRAIGHT_LEN + curveLen); x = (TRACK_CENTER_X + sl_half) - straightDist; y = TRACK_CENTER_Y + RADIUS;
+            } else {
+                const curveDist = d - ((STRAIGHT_LEN * 2) + curveLen); const angle = Math.PI/2 + (curveDist / curveLen) * Math.PI;
+                x = (TRACK_CENTER_X - sl_half) + Math.cos(angle) * RADIUS; y = TRACK_CENTER_Y + Math.sin(angle) * RADIUS;
+            }
+            const dx = x - TRACK_CENTER_X; const dy = y - TRACK_CENTER_Y; const distToCenter = Math.sqrt(dx*dx + dy*dy);
+            if (distToCenter > 0) { x += (dx / distToCenter) * this.laneOffset; y += (dy / distToCenter) * this.laneOffset; }
+            return { x, y };
+        }
+    }
+
+    // --- YARDIMCI FONKSİYONLAR ---
+    function getRandomColor() {
+        const colors = ['#e74c3c', '#8e44ad', '#3498db', '#1abc9c', '#f1c40f', '#e67e22', '#ecf0f1', '#34495e', '#d35400', '#27ae60', '#c0392b', '#7f8c8d'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function generateHorses() {
+        const count = parseInt(document.getElementById('num-horses').value);
+        horses = [];
+        const list = document.getElementById('horse-list');
+        list.innerHTML = '';
+        let availableNames = [...ORIGINAL_HORSE_NAMES];
+        const trackWidth = 60; const spacing = trackWidth / count;
+
+        for (let i = 0; i < count; i++) {
+            let nameIndex = Math.floor(Math.random() * availableNames.length);
+            let horseName = availableNames.splice(nameIndex, 1)[0];
+            if (availableNames.length === 0) availableNames = [...ORIGINAL_HORSE_NAMES];
+            const h = new Horse(i, horseName, getRandomColor());
+            h.laneOffset = (i - count/2) * (spacing * 0.8); 
+            horses.push(h);
+            const li = document.createElement('li');
+            li.className = 'horse-option';
+            li.innerHTML = `
+                <div style="display:flex; align-items:center;">
+                    <div style="width:20px;height:20px;background:${h.color};margin-right:10px;border:1px solid #000;border-radius:50%;"></div>
+                    <strong>${h.name}</strong>
+                </div>
+                <span style="color:#7f8c8d; font-size:0.8em;">#${i+1}</span>
+            `;
+            li.onclick = () => selectHorse(i, li);
+            list.appendChild(li);
+        }
+        document.getElementById('selection-area').style.display = 'block';
+        narrate("Yarışçıları inceleyin ve favorinizi seçin.");
+        drawStaticTrack(); 
+    }
+
+    function selectHorse(index, element) {
+        selectedHorseId = index;
+        document.querySelectorAll('.horse-option').forEach(el => el.classList.remove('selected'));
+        element.classList.add('selected');
+        document.getElementById('start-btn').disabled = false;
+        narrate(`${horses[index].name} üzerine bahsi yatırdınız. Bol şans!`);
+    }
+
+    function startRace() {
+        soundManager.init(); soundManager.startGallop(); soundManager.startCrowd();
+        document.getElementById('ui-layer').classList.add('hidden');
+        leaderboardBox.style.display = 'block'; userRankEl.style.display = 'block';
+        isRacing = true; winner = null; lastLeaderId = -1; commentaryCooldown = 0;
+        flashTriggered = false; particles = []; confetti = [];
+        sayRandomLine(COMMENTARY.START);
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resetGame() {
+        soundManager.stopAll();
+        document.getElementById('result-panel').style.display = 'none';
+        document.getElementById('setup-panel').style.display = 'block';
+        document.getElementById('ui-layer').classList.remove('hidden'); 
+        leaderboardBox.style.display = 'none'; userRankEl.style.display = 'none';
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('selection-area').style.display = 'none';
+        document.getElementById('horse-list').innerHTML = '';
+        horses = []; particles = []; confetti = []; selectedHorseId = null;
+        drawStaticTrack(); narrate("Gamers Lounge Koşusu'na hoş geldiniz.");
+    }
+
+    function narrate(text) { narratorEl.innerText = text; }
+    function sayRandomLine(lineArray, horseName = "") {
+        const rawLine = lineArray[Math.floor(Math.random() * lineArray.length)];
+        narrate(rawLine.replace("{HORSE}", horseName));
+    }
+    function triggerFlash() {
+        flashOverlay.style.opacity = 1; setTimeout(() => { flashOverlay.style.opacity = 0; }, 100);
+    }
+
+    // --- ÇİZİM & DÖNGÜ ---
+    function drawTrack() {
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.arc(TRACK_CENTER_X - STRAIGHT_LEN/2, TRACK_CENTER_Y, RADIUS + 40, Math.PI/2, Math.PI * 1.5);
+        ctx.arc(TRACK_CENTER_X + STRAIGHT_LEN/2, TRACK_CENTER_Y, RADIUS + 40, Math.PI * 1.5, Math.PI/2);
+        ctx.closePath(); ctx.fillStyle = '#8d6e63'; ctx.fill(); ctx.strokeStyle = '#ecf0f1'; ctx.lineWidth = 2; ctx.stroke();
+
+        ctx.save(); ctx.beginPath();
+        ctx.arc(TRACK_CENTER_X - STRAIGHT_LEN/2, TRACK_CENTER_Y, RADIUS - 40, Math.PI/2, Math.PI * 1.5);
+        ctx.arc(TRACK_CENTER_X + STRAIGHT_LEN/2, TRACK_CENTER_Y, RADIUS - 40, Math.PI * 1.5, Math.PI/2);
+        ctx.closePath(); ctx.clip(); 
+        ctx.fillStyle = '#27ae60'; ctx.fillRect(0,0,canvas.width, canvas.height);
+        ctx.fillStyle = '#2ecc71'; for(let i=0; i<canvas.width; i+=50) { ctx.fillRect(i, 0, 25, canvas.height); }
+        ctx.restore(); ctx.stroke();
+
+        const fx = TRACK_CENTER_X - STRAIGHT_LEN/2; const fy_start = TRACK_CENTER_Y - RADIUS - 40; const fy_end = TRACK_CENTER_Y - RADIUS + 40;
+        ctx.save(); ctx.beginPath(); ctx.moveTo(fx, fy_start); ctx.lineTo(fx, fy_end);
+        ctx.lineWidth = 8; ctx.strokeStyle = 'white'; ctx.stroke();
+        ctx.setLineDash([4, 4]); ctx.strokeStyle = 'black'; ctx.stroke(); ctx.restore();
+    }
+
+    function drawHorses() {
+        const sortedHorses = [...horses].sort((a, b) => a.getPosition().y - b.getPosition().y);
+        
+        // Lideri bul (sadece mesafe olarak en öndeki)
+        let leader = null;
+        if(horses.length > 0) {
+            leader = horses.reduce((prev, current) => (prev.distance > current.distance) ? prev : current);
+        }
+
+        sortedHorses.forEach(h => {
+            const pos = h.getPosition();
+            
+            if (h.isBoosting && h.trail.length > 0) {
+                h.trail.forEach((pt, idx) => {
+                    ctx.beginPath(); ctx.arc(pt.x, pt.y, 5, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${ (idx / h.trail.length) * 0.3 })`; ctx.fill();
+                });
+            }
+
+            if (h.isBoosting) { ctx.save(); ctx.shadowBlur = 20; ctx.shadowColor = '#f1c40f'; }
+            ctx.beginPath(); ctx.ellipse(pos.x, pos.y + 6, 8, 4, 0, 0, Math.PI*2); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fill();
+            ctx.beginPath(); ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2); ctx.fillStyle = h.color; ctx.fill();
+            ctx.strokeStyle = 'black'; ctx.lineWidth = 1; ctx.stroke();
+            if (h.isBoosting) ctx.restore();
+            
+            // --- İSİM ETİKETLERİ (Tooltip) ---
+            // 1. Lider mi?
+            const isLeader = (leader && h.id === leader.id);
+            // 2. Oyuncu mu?
+            const isUser = (h.id === selectedHorseId);
+            // 3. Mouse üzerinde mi? (Basit mesafe kontrolü)
+            const dx = mouseX - pos.x;
+            const dy = mouseY - pos.y;
+            const isHovered = (dx*dx + dy*dy < 20*20); // 20px yarıçap
+
+            if (isLeader || isUser || isHovered) {
+                let labelText = h.name;
+                if (isUser) labelText += " (SEN)";
+                else if (isLeader) labelText += " (1.)";
+
+                ctx.save();
+                ctx.font = "12px Arial";
+                const textWidth = ctx.measureText(labelText).width;
+                const boxW = textWidth + 10;
+                const boxH = 20;
+                const boxX = pos.x - boxW / 2;
+                const boxY = pos.y - 30;
+
+                // Etiket Arkaplanı
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillRect(boxX, boxY, boxW, boxH);
+                
+                // Etiket Metni
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(labelText, pos.x, boxY + boxH/2);
+
+                // Bağlantı Okçuğu
+                ctx.beginPath();
+                ctx.moveTo(pos.x, boxY + boxH);
+                ctx.lineTo(pos.x - 5, boxY + boxH + 5);
+                ctx.lineTo(pos.x + 5, boxY + boxH + 5);
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // Oyuncu Oku (Ekstra belirteç)
+            if (isUser) {
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.strokeStyle = 'black'; ctx.lineWidth = 3;
+                ctx.strokeText("▼", pos.x - 8, pos.y - 18); ctx.fillText("▼", pos.x - 8, pos.y - 18);
+            }
+        });
+    }
+
+    function drawStaticTrack() { drawTrack(); if(horses.length > 0) drawHorses(); }
+
+    function gameLoop() {
+        if (!isRacing && confetti.length === 0) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawTrack();
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update(); particles[i].draw(ctx); if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+
+        let activeRunners = 0; let totalProgress = 0;
+        horses.forEach(h => { h.update(); if (!h.finished) activeRunners++; totalProgress += h.distance; });
+
+        const avgProgress = (totalProgress / horses.length) / TOTAL_DIST;
+        if(isRacing) soundManager.updateCrowdIntensity(avgProgress);
+
+        drawHorses();
+
+        const leaderboard = [...horses].sort((a, b) => {
+            if (a.finished && b.finished) return a.finishTime - b.finishTime;
+            else if (a.finished) return -1; else if (b.finished) return 1;
+            else return b.distance - a.distance;
+        });
+        
+        updateHUD(leaderboard);
+        if(isRacing) updateNarrator(leaderboard);
+        if (confetti.length > 0) confetti.forEach(c => { c.update(); c.draw(ctx); });
+        if (activeRunners === 0 && isRacing) endRace(leaderboard);
+        else requestAnimationFrame(gameLoop);
+    }
+
+    function updateHUD(leaderboard) {
+        top3ListEl.innerHTML = '';
+        for(let i=0; i<3; i++) {
+            if(leaderboard[i]) {
+                const h = leaderboard[i];
+                const percent = Math.min(100, Math.floor((h.distance / TOTAL_DIST)*100));
+                const status = h.finished ? "🏁" : (h.isBoosting ? "🚀" : percent + "%");
+                const li = document.createElement('li');
+                li.innerHTML = `<span style="color:${h.color}; text-shadow:1px 1px 0 #000; font-weight:bold;">${i+1}. ${h.name}</span><span>${status}</span>`;
+                top3ListEl.appendChild(li);
+            }
+        }
+        const userRankIndex = leaderboard.findIndex(h => h.id === selectedHorseId);
+        if (userRankIndex !== -1) {
+            userRankEl.innerText = `SIRA: ${userRankIndex + 1} / ${horses.length}`;
+            userRankEl.style.borderColor = (userRankIndex === 0) ? "#2ecc71" : "#f39c12";
+        }
+    }
+
+    function updateNarrator(leaderboard) {
+        if (commentaryCooldown > 0) { commentaryCooldown--; return; }
+        const leader = leaderboard[0]; const second = leaderboard[1];
+        const boostingHorse = leaderboard.find(h => h.isBoosting && !h.finished);
+        if (boostingHorse && Math.random() > 0.85) { sayRandomLine(COMMENTARY.SPRINT, boostingHorse.name); commentaryCooldown = 100; return; }
+        if (lastLeaderId !== -1 && leader.id !== lastLeaderId && !leader.finished) {
+            sayRandomLine(COMMENTARY.LEAD_CHANGE, leader.name); lastLeaderId = leader.id; commentaryCooldown = 150; return;
+        }
+        lastLeaderId = leader.id;
+        if (leader.distance > TOTAL_DIST - 350 && leader.distance < TOTAL_DIST - 300) { sayRandomLine(COMMENTARY.FINAL); commentaryCooldown = 120; return; }
+        if (second && (leader.distance - second.distance) < 25 && !leader.finished && Math.random() > 0.7) {
+            sayRandomLine(COMMENTARY.CLOSE_FIGHT); commentaryCooldown = 140; return;
+        }
+    }
+
+    function endRace(leaderboard) {
+        isRacing = false; winner = leaderboard[0]; soundManager.stopAll();
+        for(let i=0; i<100; i++) confetti.push(new ConfettiPiece());
+        const userWon = (winner.id === selectedHorseId);
+        const resultTitle = document.getElementById('result-title');
+        const resultMsg = document.getElementById('result-message');
+        if (userWon) {
+            resultTitle.innerText = "ZAFER SENİN!"; resultTitle.style.color = "#27ae60";
+            resultMsg.innerHTML = `Tebrikler! <strong>${winner.name}</strong> şampiyon oldu!`;
+            narrate(`FOTO FİNİŞ! ${winner.name} KAZANDI! TEBRİKLER!`);
+        } else {
+            resultTitle.innerText = "YARIŞ BİTTİ"; resultTitle.style.color = "#c0392b";
+            const userRank = leaderboard.findIndex(h => h.id === selectedHorseId) + 1;
+            resultMsg.innerHTML = `Kazanan: <strong>${winner.name}</strong><br>Senin Sıran: #${userRank}`;
+            narrate(`Şampiyon ${winner.name}! Bir sonraki yarışta bol şans.`);
+        }
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('result-panel').style.display = 'block';
+        document.getElementById('ui-layer').classList.remove('hidden');
+    }
+    drawStaticTrack();
+</script>
+</body>
+</html>
